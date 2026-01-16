@@ -26,8 +26,10 @@ Description: ${data.metadata.description}
 Key Subpages Found (Context for Scope):
 ${data.links.slice(0, 50).join('\n')}
 
-Subpage Content (Deep Dive on Top 3 Pages):
-${data.subpagesContent?.map(p => `--- PAGE: ${p.url} (${p.title}) ---\n${p.text.slice(0, 2000)}...`).join('\n\n') || 'No subpage content available.'}
+All Crawled Subpage Content (Full Analysis):
+${data.subpagesContent?.map((p, i) => `--- PAGE ${i + 1}/${data.subpagesContent?.length}: ${p.url} ---
+TITLE: ${p.title}
+CONTENT: ${p.text.slice(0, 5000)}...`).join('\n\n') || 'No subpage content available.'}
 
 Visual Context:
 - Primary Colors: ${ds.colors.primary.map(c => c.hex).join(', ')}

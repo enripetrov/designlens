@@ -114,22 +114,68 @@ export async function scrapeUrl(url: string): Promise<ScrapedData> {
             if (win.__NEXT_DATA__) techStack.push('Next.js');
             if (win.__NUXT__) techStack.push('Nuxt.js');
 
-            // Internal Links
+            // Internal Links - Enhanced Filtering
             const getHostname = (url: string) => {
                 try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
             };
-            const currentHost = getHostname(window.location.href);
 
-            const internalLinks = Array.from(document.querySelectorAll('a'))
+            const normalizeUrl = (url: string) => {
+                try {
+                    const parsed = new URL(url);
+                    // Remove hash and trailing slash for deduplication
+                    return parsed.origin + parsed.pathname.replace(/\/$/, '') + parsed.search;
+                } catch { return url; }
+            };
+
+            const currentUrl = window.location.href;
+            const currentHost = getHostname(currentUrl);
+
+            // Extract and filter links
+            const allLinks = Array.from(document.querySelectorAll('a'))
                 .map(a => a.href)
                 .filter(href => {
-                    if (!href || href === window.location.href) return false;
-                    if (!href.startsWith('http')) return false;
+                    if (!href || !href.startsWith('http')) return false;
+
                     const linkHost = getHostname(href);
-                    return linkHost === currentHost || (linkHost && linkHost.endsWith('.' + currentHost));
+                    // Must be same domain or subdomain
+                    if (linkHost !== currentHost && !linkHost.endsWith('.' + currentHost)) return false;
+
+                    // Normalize and check if same as current page
+                    const normalized = normalizeUrl(href);
+                    const normalizedCurrent = normalizeUrl(currentUrl);
+                    if (normalized === normalizedCurrent) return false;
+
+                    // Filter out common non-content pages
+                    const path = new URL(href).pathname.toLowerCase();
+                    const excludePatterns = [
+                        '/login', '/signin', '/signup', '/register', '/logout',
+                        '/search', '/cart', '/checkout', '/payment',
+                        '/admin', '/dashboard', '/account', '/profile',
+                        '/wp-admin', '/wp-login'
+                    ];
+                    if (excludePatterns.some(pattern => path.includes(pattern))) return false;
+
+                    // Filter out file downloads
+                    if (path.match(/\.(pdf|zip|jpg|jpeg|png|gif|svg|doc|docx|xls|xlsx)$/i)) return false;
+
+                    return true;
                 })
-                .filter((v, i, a) => a.indexOf(v) === i) // Unique
-                .slice(0, 50);
+                .map(href => normalizeUrl(href));
+
+            // Deduplicate
+            const uniqueLinks = Array.from(new Set(allLinks));
+
+            // Prioritize important pages (move them to front)
+            const priorityPatterns = ['/about', '/features', '/pricing', '/contact', '/services', '/products'];
+            const priorityLinks = uniqueLinks.filter(link =>
+                priorityPatterns.some(p => new URL(link).pathname.toLowerCase().includes(p))
+            );
+            const otherLinks = uniqueLinks.filter(link =>
+                !priorityPatterns.some(p => new URL(link).pathname.toLowerCase().includes(p))
+            );
+
+            // Combine: priority first, then others, limit to 50
+            const internalLinks = [...priorityLinks, ...otherLinks].slice(0, 50);
 
             return { links: internalLinks, techStack: Array.from(new Set(techStack)) };
         });
@@ -334,45 +380,93 @@ export async function scrapeUrl(url: string): Promise<ScrapedData> {
 
         // Subpage Crawling (Dynamic - Up to 12)
         const subpagesContent: Array<{ url: string; text: string; title: string }> = [];
+        const failedCrawls: Array<{ url: string; error: string }> = [];
+        const totalLinksFound = baseData.links.length;
+        let linksAttempted = 0;
+        let linksSucceeded = 0;
+
         if (baseData.links.length > 0) {
             // Crawl up to 12 subpages to cover most small/medium sites fully
             const linksToCrawl = baseData.links.slice(0, 12);
+            linksAttempted = linksToCrawl.length;
+
+            console.log(`[Scraper] Starting subpage crawl: ${linksAttempted} pages to analyze`);
 
             // Helper function to scrape a single subpage
             // We use the existing browser instance to save startup time
-            const scrapeSubpage = async (link: string) => {
+            const scrapeSubpage = async (link: string, index: number) => {
                 let page: any;
+                const startTime = Date.now();
                 try {
+                    console.log(`[Scraper] [${index + 1}/${linksAttempted}] Crawling: ${link}`);
+
                     page = await browser.newPage();
+
                     // Block images/fonts for speed on subpages
                     await page.setRequestInterception(true);
                     page.on('request', (req: any) => {
-                        if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+                        // Allow stylesheets for SPAs, but block heavy resources
+                        if (['image', 'font', 'media'].includes(req.resourceType())) {
                             req.abort();
                         } else {
                             req.continue();
                         }
                     });
 
-                    await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 15000 });
+                    await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-                    return await page.evaluate(() => ({
+                    const result = await page.evaluate(() => ({
                         url: window.location.href,
                         title: document.title,
                         text: document.body.innerText.slice(0, 10000) // 10k chars max
                     }));
-                } catch (e) {
+
+                    const duration = Date.now() - startTime;
+                    console.log(`[Scraper] ✓ Success [${index + 1}/${linksAttempted}] ${link} (${duration}ms)`);
+
+                    return result;
+                } catch (e: any) {
+                    const duration = Date.now() - startTime;
+                    const errorMsg = e.message || 'Unknown error';
+                    console.error(`[Scraper] ✗ Failed [${index + 1}/${linksAttempted}] ${link} (${duration}ms): ${errorMsg}`);
+
+                    // Track failure with detailed error
+                    failedCrawls.push({
+                        url: link,
+                        error: errorMsg.includes('timeout') ? 'Timeout (20s)' :
+                            errorMsg.includes('net::') ? 'Network error' :
+                                errorMsg.includes('ERR_') ? 'Connection failed' :
+                                    errorMsg
+                    });
+
                     return null;
                 } finally {
-                    if (page) await page.close();
+                    if (page) {
+                        try {
+                            await page.close();
+                        } catch (e) {
+                            console.error(`[Scraper] Warning: Failed to close page for ${link}`);
+                        }
+                    }
                 }
             };
 
-            // Run in parallel
-            const results = await Promise.all(linksToCrawl.map((link: string) => scrapeSubpage(link)));
+            // Run in parallel with Promise.all
+            const results = await Promise.all(
+                linksToCrawl.map((link: string, index: number) => scrapeSubpage(link, index))
+            );
+
             results.forEach((res: any) => {
-                if (res) subpagesContent.push(res);
+                if (res) {
+                    subpagesContent.push(res);
+                    linksSucceeded++;
+                }
             });
+
+            console.log(`[Scraper] Crawl Summary: ${linksSucceeded}/${linksAttempted} succeeded, ${failedCrawls.length} failed`);
+            if (failedCrawls.length > 0) {
+                console.log(`[Scraper] Failed URLs:`, failedCrawls.map(f => `${f.url} (${f.error})`));
+            }
         }
 
         // Screenshot
@@ -393,6 +487,13 @@ export async function scrapeUrl(url: string): Promise<ScrapedData> {
             viewport: styleData.viewport,
             links: baseData.links,
             subpagesContent,
+            crawlStats: {
+                totalLinksFound,
+                linksAttempted,
+                linksSucceeded,
+                linksFailed: failedCrawls.length,
+                failedUrls: failedCrawls
+            },
             techStack: baseData.techStack
         };
 

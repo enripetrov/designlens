@@ -49,6 +49,7 @@ export async function runAnalysis(scraped: ScrapedData): Promise<Partial<Analysi
             url: p.url,
             title: p.title
         })) || [],
+        crawlStats: scraped.crawlStats,
         techStack: scraped.techStack || []
     };
 }

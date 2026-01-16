@@ -90,19 +90,33 @@ export interface LayoutInfo {
     hasGrid: boolean
 }
 
+
 export interface SEOInfo {
     score: number
+    aiLlmScore?: number
     title: string | null
     description: string | null
     ogImage: string | null
     ogTags: Record<string, string>
     structuredData: any[]
     issues: SEOIssue[]
+    recommendations?: string[]
     headings: {
         h1: string[]
         h2: string[]
         h3: string[]
     }
+    headingCount?: {
+        h1: number
+        h2: number
+        h3: number
+        h4: number
+        h5: number
+        h6: number
+        total: number
+    }
+    semanticElements?: string[]
+    semanticScore?: number
     canonical: string | null
     robots: string | null
     altTags: {
@@ -183,6 +197,13 @@ export interface AnalysisResult {
         url: string
         title: string
     }>
+    crawlStats?: {
+        totalLinksFound: number
+        linksAttempted: number
+        linksSucceeded: number
+        linksFailed: number
+        failedUrls: Array<{ url: string; error: string }>
+    }
     techStack?: string[]
 }
 
@@ -234,6 +255,13 @@ export interface ScrapedData {
     viewport: { width: number; height: number }
     links: string[]
     subpagesContent?: Array<{ url: string; text: string; title: string }>
+    crawlStats?: {
+        totalLinksFound: number
+        linksAttempted: number
+        linksSucceeded: number
+        linksFailed: number
+        failedUrls: Array<{ url: string; error: string }>
+    }
     techStack?: string[]
     debug?: any
 }

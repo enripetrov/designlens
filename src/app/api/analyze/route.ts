@@ -41,6 +41,9 @@ export async function POST(request: Request) {
             seo: partialResult.seo!,
             insights: partialResult.insights!,
             internalLinks: partialResult.internalLinks || [],
+            pagesAnalyzed: partialResult.pagesAnalyzed || [],
+            crawlStats: partialResult.crawlStats,
+            techStack: partialResult.techStack || [],
             exports: partialResult.exports!
         };
 
