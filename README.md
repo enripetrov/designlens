@@ -4,6 +4,27 @@ AI-powered website analyzer that generates comprehensive PRDs, design system ana
 
 ## 🚀 Quick Start (Windows)
 
+### ⚡ Easiest Way (Recommended)
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/enripetrov/designlens.git
+   cd designlens
+   ```
+
+2. **Double-click `SETUP.bat`**
+   - Automatically checks Node.js installation
+   - Installs npm dependencies
+   - Helps you create `.env.local` file
+   - Starts the application
+
+**That's it!** The setup wizard handles everything else! 🚀
+
+---
+
+### 📋 Manual Setup
+
 ### Prerequisites
 
 1. **Node.js** (version 18 or higher)

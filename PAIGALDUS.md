@@ -23,6 +23,27 @@
 
 ## 📥 Sammud teises arvutis käivitamiseks
 
+### ⚡ KIIRE VIIS (Soovitatud)
+
+1. **Kloon GitHubist:**
+
+```bash
+git clone https://github.com/enripetrov/designlens.git
+cd designlens
+```
+
+1. **Topeltklõps `SETUP.bat` failil**
+   - Kontrollib kõike automaatselt
+   - Installib npm paketid
+   - Aitab luua `.env.local` faili
+   - Käivitab rakenduse
+
+**See on kõik!** Setup wizard teeb ülejäänu ära! 🚀
+
+---
+
+### 📋 Samm-sammuline viis
+
 ### Samm 1: Kloon projekt GitHubist
 
 ```bash
